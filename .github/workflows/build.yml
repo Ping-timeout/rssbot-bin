@@ -3,12 +3,48 @@ name: Build Upstream rssbot
 on:
   schedule:
     - cron: '0 0 * * *'
+  # Allows you to trigger the build manually
   workflow_dispatch: 
 
 jobs:
-  build:
+  # --- JOB 1: Check if there are new changes ---
+  check_changes:
     runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.decision.outputs.build }}
+    steps:
+      - name: Get latest upstream commit
+        id: get_commit
+        run: |
+          SHA=$(git ls-remote https://github.com/iovxw/rssbot.git HEAD | awk '{print $1}')
+          echo "sha=$SHA" >> $GITHUB_OUTPUT
 
+      - name: Check if commit was already built
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: .built-commit
+          key: built-commit-${{ steps.get_commit.outputs.sha }}
+
+      - name: Decide whether to build
+        id: decision
+        run: |
+          # If cache matched AND it's an automated schedule run, skip the build
+          if [ "${{ steps.cache.outputs.cache-hit }}" == "true" ] && [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
+            echo "No new commits. Skipping build."
+            echo "build=false" >> $GITHUB_OUTPUT
+          else
+            echo "New commit found or manual trigger. Proceeding to build."
+            echo "build=true" >> $GITHUB_OUTPUT
+            # Create a dummy file so the cache action saves this new commit hash
+            echo "${{ steps.get_commit.outputs.sha }}" > .built-commit
+          fi
+
+  # --- JOB 2: Build the binary (Only if needed) ---
+  build:
+    needs: check_changes
+    if: needs.check_changes.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
     steps:
       # 1. Check out the external repository AND its submodules
       - name: Checkout upstream repo
