@@ -1,10 +1,8 @@
 name: Build Upstream rssbot
 
 on:
-  # Runs automatically every day at midnight UTC
   schedule:
     - cron: '0 0 * * *'
-  # Allows you to trigger the build manually from the Actions tab
   workflow_dispatch: 
 
 jobs:
@@ -12,18 +10,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Check out the external repository
+      # 1. Check out the external repository AND its submodules
       - name: Checkout upstream repo
         uses: actions/checkout@v4
         with:
           repository: iovxw/rssbot
           fetch-depth: 1
+          submodules: recursive
 
       # 2. Install Rust Nightly toolchain
       - name: Setup Rust Nightly
         uses: dtolnay/rust-toolchain@nightly
 
-      # 3. Cache Cargo registry and build directory to speed up future runs
+      # 3. Cache Cargo registry and build directory
       - name: Cache Cargo
         uses: actions/cache@v4
         with:
@@ -39,11 +38,11 @@ jobs:
       - name: Build rssbot
         run: cargo build --release
 
-      # 5. Upload the compiled binary to GitHub Actions Artifacts
+      # 5. Upload the compiled binary
       - name: Upload Binary Artifact
         uses: actions/upload-artifact@v4
         with:
           name: rssbot-linux-amd64
           path: target/release/rssbot
           if-no-files-found: error
-          retention-days: 90 # Keeps the download link active for 90 days
+          retention-days: 90
